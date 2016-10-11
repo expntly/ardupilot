@@ -347,6 +347,10 @@ static const struct {
 
 QuadPlane::QuadPlane(AP_AHRS_NavEKF &_ahrs) :
     ahrs(_ahrs)
+#if PRECISION_LANDING == ENABLED
+    , precland(ahrs, inertial_nav)
+#endif
+
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
@@ -706,6 +710,24 @@ float QuadPlane::landing_descent_rate_cms(float height_above_ground)
     return ret;
 }
 
+bool QuadPlane::try_precision_landing() {
+  bool doing_precision_landing = false;
+#if PRECISION_LANDING == ENABLED
+  if (precland.target_acquired() &&
+      precland_last_update_ms != precland.last_update_ms() &&
+      poscontrol.state > QPOS_POSITION1) {
+
+      doing_precision_landing = true;
+      Vector3f target_pos;
+      precland.get_target_position(target_pos);
+      pos_control->set_xy_target(target_pos.x, target_pos.y);
+      pos_control->freeze_ff_xy();
+      precland_last_update_ms = precland.last_update_ms();
+  }
+#endif
+  return doing_precision_landing;
+}
+
 
 // run quadplane loiter controller
 void QuadPlane::control_loiter()
@@ -742,7 +764,11 @@ void QuadPlane::control_loiter()
     // Update EKF speed limit - used to limit speed when we are using optical flow
     float ekfGndSpdLimit, ekfNavVelGainScaler;    
     ahrs.getEkfControlLimits(ekfGndSpdLimit, ekfNavVelGainScaler);
-    
+
+    if (plane.control_mode == QLAND) {
+      try_precision_landing();
+    }
+
     // run loiter controller
     wp_nav->update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
 
@@ -1362,13 +1388,15 @@ void QuadPlane::vtol_position_controller(void)
     const Location &loc = plane.next_WP_loc;
     float ekfGndSpdLimit, ekfNavVelGainScaler;    
     ahrs.getEkfControlLimits(ekfGndSpdLimit, ekfNavVelGainScaler);
-    
+
+    bool doing_precision_landing = try_precision_landing();
+
     switch (poscontrol.state) {
     case QPOS_LAND_FINAL:
         /*
           for land-final we use the loiter controller
          */
-    
+
         // run loiter controller
         wp_nav->update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
 
@@ -1491,7 +1519,10 @@ void QuadPlane::vtol_position_controller(void)
         // also run fixed wing navigation
         plane.nav_controller->update_waypoint(plane.prev_WP_loc, loc);
 
-        pos_control->set_xy_target(poscontrol.target.x, poscontrol.target.y);
+        // If we were doing precision landing we already gave an xy target.
+        if (!doing_precision_landing) {
+          pos_control->set_xy_target(poscontrol.target.x, poscontrol.target.y);
+        }
         
         // run loiter controller
         wp_nav->update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
@@ -1511,6 +1542,9 @@ void QuadPlane::vtol_position_controller(void)
         // nothing to do
         break;
     }
+
+    // TODO: do we want to deal with a min descend speed like in
+    // ArduCopter/control_land.cpp?
 
     // now height control
     switch (poscontrol.state) {
