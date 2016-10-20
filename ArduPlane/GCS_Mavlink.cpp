@@ -321,6 +321,15 @@ void Plane::send_extended_status1(mavlink_channel_t chan)
     }
 #endif
 
+#if PRECISION_LANDING == ENABLED
+    if (quadplane.precland.enabled()) {
+        control_sensors_present |= MAV_SYS_STATUS_SENSOR_VISION_POSITION;
+    }
+    if (!quadplane.precland.healthy()) {
+        control_sensors_health &= ~MAV_SYS_STATUS_SENSOR_VISION_POSITION;
+    }
+#endif
+
     if (aparm.throttle_min < 0 && channel_throttle->get_servo_out() < 0) {
         control_sensors_enabled |= MAV_SYS_STATUS_REVERSE_MOTOR;
         control_sensors_health |= MAV_SYS_STATUS_REVERSE_MOTOR;
@@ -2284,6 +2293,13 @@ void GCS_MAVLINK_Plane::handleMessage(mavlink_message_t* msg)
 
         break;
     }
+
+#if PRECISION_LANDING == ENABLED
+    case MAVLINK_MSG_ID_LANDING_TARGET:
+        plane.quadplane.precland.handle_msg(msg);
+        break;
+#endif
+
 
     case MAVLINK_MSG_ID_ADSB_VEHICLE:
     case MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_CFG:

@@ -84,6 +84,9 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(dataflash_periodic,     50,    400),
     SCHED_TASK(avoidance_adsb_update,  10,    100),
     SCHED_TASK(button_update,           5,    100),
+#if PRECISION_LANDING == ENABLED
+    SCHED_TASK(update_precland,      400,     50),
+#endif
 };
 
 void Plane::setup() 
@@ -279,6 +282,10 @@ void Plane::update_logging2(void)
 
     if (should_log(MASK_LOG_IMU))
         DataFlash.Log_Write_Vibration(ins);
+
+#if PRECISION_LANDING == ENABLED
+    Log_Write_Precland();
+#endif
 }
 
 

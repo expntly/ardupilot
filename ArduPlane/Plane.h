@@ -1041,6 +1041,9 @@ private:
     void update_logging1(void);
     void update_logging2(void);
     void terrain_update(void);
+    void init_precland();
+    void update_precland();
+    void Log_Write_Precland();
     void avoidance_adsb_update(void);
     void update_flight_mode(void);
     void stabilize();

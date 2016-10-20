@@ -10,6 +10,12 @@
 #include <AC_Avoidance/AC_Avoid.h>
 #include <AP_Proximity/AP_Proximity.h>
 
+#include "config.h"
+#if PRECISION_LANDING == ENABLED
+#include <AC_PrecLand/AC_PrecLand.h>
+#include <AP_IRLock/AP_IRLock.h>
+#endif
+
 /*
   frame types for quadplane build. Most case be set with
   parameters. Those that can't are listed here and chosen with a build
@@ -195,6 +201,8 @@ private:
     void guided_start(void);
     void guided_update(void);
 
+    bool try_precision_landing();
+
     void check_throttle_suppression(void);
     
     AP_Int16 transition_time_ms;
@@ -346,6 +354,11 @@ private:
     void tiltrotor_slew(float tilt);
     void tiltrotor_update(void);
     void tilt_compensate(float *thrust, uint8_t num_motors);
+
+    uint32_t precland_last_update_ms;
+#if PRECISION_LANDING == ENABLED
+    AC_PrecLand precland;
+#endif
 
     void afs_terminate(void);
     bool guided_mode_enabled(void);

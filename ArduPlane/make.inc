@@ -59,3 +59,5 @@ LIBRARIES += AC_Fence
 LIBRARIES += AC_Avoidance
 LIBRARIES += AP_Proximity
 LIBRARIES += AP_Tuning
+LIBRARIES += AC_PrecLand
+LIBRARIES += AP_IRLock
