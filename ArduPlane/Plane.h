@@ -44,6 +44,7 @@
 #include <AP_AccelCal/AP_AccelCal.h>                // interface and maths for accelerometer calibration
 #include <AP_AHRS/AP_AHRS.h>         // ArduPilot Mega DCM Library
 #include <RC_Channel/RC_Channel.h>     // RC Channel Library
+#include <RC_Channel/SRV_Channel.h>
 #include <AP_RangeFinder/AP_RangeFinder.h>     // Range finder library
 #include <Filter/Filter.h>                     // Filter library
 #include <AP_Buffer/AP_Buffer.h>      // APM FIFO Buffer
@@ -773,6 +774,14 @@ private:
         uint32_t last_log_dropped;
     } perf;
 
+    struct {
+        uint32_t last_trim_check;
+        uint32_t last_trim_save;
+    } auto_trim;
+
+    // last time home was updated while disarmed
+    uint32_t last_home_update_ms;
+    
     // Camera/Antenna mount tracking and stabilisation stuff
 #if MOUNT == ENABLED
     // current_loc uses the baro/gps soloution for altitude rather than gps only.
@@ -786,8 +795,6 @@ private:
 
     static const AP_Scheduler::Task scheduler_tasks[];
     static const AP_Param::Info var_info[];
-
-    bool demoing_servos = false;
 
     // use this to prevent recursion during sensor init
     bool in_mavlink_delay = false;
@@ -1039,6 +1046,14 @@ private:
     void stabilize();
     void set_servos_idle(void);
     void set_servos();
+    void set_servos_manual_passthrough(void);
+    void set_servos_controlled(void);
+    void set_servos_old_elevons(void);
+    void set_servos_flaps(void);
+    void servo_output_mixers(void);
+    void servos_output(void);
+    void servos_auto_trim(void);
+    void throttle_watt_limiter(int8_t &min_throttle, int8_t &max_throttle);
     bool allow_reverse_thrust(void);
     void update_aux();
     void update_is_flying_5Hz(void);

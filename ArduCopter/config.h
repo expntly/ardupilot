@@ -152,6 +152,12 @@
  # define RANGEFINDER_TILT_CORRECTION ENABLED
 #endif
 
+//////////////////////////////////////////////////////////////////////////////
+// Proximity sensor
+//
+#ifndef PROXIMITY_ENABLED
+ # define PROXIMITY_ENABLED ENABLED
+#endif
 
 #ifndef MAV_SYSTEM_ID
  # define MAV_SYSTEM_ID          1
@@ -437,8 +443,16 @@
  #define ACRO_BALANCE_PITCH         1.0f
 #endif
 
-#ifndef ACRO_EXPO_DEFAULT
- #define ACRO_EXPO_DEFAULT          0.3f
+#ifndef ACRO_RP_EXPO_DEFAULT
+ #define ACRO_RP_EXPO_DEFAULT       0.3f
+#endif
+
+#ifndef ACRO_Y_EXPO_DEFAULT
+ #define ACRO_Y_EXPO_DEFAULT        0.3f
+#endif
+
+#ifndef ACRO_THR_MID_DEFAULT
+ #define ACRO_THR_MID_DEFAULT       0.0f
 #endif
 
 // RTL Mode

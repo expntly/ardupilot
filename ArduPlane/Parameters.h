@@ -585,6 +585,12 @@ public:
 
     // internal combustion engine control
     AP_ICEngine ice_control;
+
+    // control over servo output ranges
+    SRV_Channels servo_channels;
+
+    // whether to enforce acceptance of packets only from sysid_my_gcs
+    AP_Int8 sysid_enforce;
 };
 
 extern const AP_Param::Info var_info[];

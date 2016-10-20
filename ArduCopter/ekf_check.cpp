@@ -129,7 +129,7 @@ void Copter::failsafe_ekf_event()
     }
 
     // do nothing if not in GPS flight mode and ekf-action is not land-even-stabilize
-    if (!mode_requires_GPS(control_mode) && (control_mode != LAND) && (g.fs_ekf_action != FS_EKF_ACTION_LAND_EVEN_STABILIZE)) {
+    if ((control_mode != LAND) && !mode_requires_GPS(control_mode) && (g.fs_ekf_action != FS_EKF_ACTION_LAND_EVEN_STABILIZE)) {
         return;
     }
 
@@ -183,10 +183,10 @@ void Copter::check_ekf_reset()
 
 #if AP_AHRS_NAVEKF_AVAILABLE
     // check for change in primary EKF (log only, AC_WPNav handles position target adjustment)
-    if (EKF2.getPrimaryCoreIndex() != ekf_primary_core) {
+    if ((EKF2.getPrimaryCoreIndex() != ekf_primary_core) && (EKF2.getPrimaryCoreIndex() != -1)) {
         ekf_primary_core = EKF2.getPrimaryCoreIndex();
         Log_Write_Error(ERROR_SUBSYSTEM_EKF_PRIMARY, ekf_primary_core);
-        gcs_send_text_fmt(MAV_SEVERITY_WARNING, "EKF primary changed:%u\n", (unsigned)ekf_primary_core);
+        gcs_send_text_fmt(MAV_SEVERITY_WARNING, "EKF primary changed:%d\n", (unsigned)ekf_primary_core);
     }
 #endif
 }
