@@ -355,7 +355,6 @@ private:
     void tiltrotor_update(void);
     void tilt_compensate(float *thrust, uint8_t num_motors);
 
-    uint32_t precland_last_update_ms;
 #if PRECISION_LANDING == ENABLED
     AC_PrecLand precland;
 #endif

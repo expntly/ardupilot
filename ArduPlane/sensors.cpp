@@ -18,6 +18,8 @@ void Plane::init_rangefinder(void)
 {
 #if RANGEFINDER_ENABLED == ENABLED
     rangefinder.init();
+    rangefinder_state.alt_cm_filt.set_cutoff_frequency(RANGEFINDER_WPNAV_FILT_HZ);
+    rangefinder_state.enabled = (rangefinder.num_sensors() >= 1);
 #endif
 }
 
@@ -57,7 +59,45 @@ void Plane::read_rangefinder(void)
         Log_Write_Sonar();
 
     rangefinder_height_update();
+
+    rangefinder_state.alt_healthy = ((rangefinder.status() == RangeFinder::RangeFinder_Good) && (rangefinder.range_valid_count() >= RANGEFINDER_HEALTH_MAX));
+
+    int16_t temp_alt = rangefinder.distance_cm();
+
+    // correct alt for angle of the rangefinder
+    temp_alt = (float)temp_alt * MAX(0.707f, ahrs.get_rotation_body_to_ned().c.z);
+
+    rangefinder_state.alt_cm = temp_alt;
+
+    // filter rangefinder for use by AC_WPNav
+    if (quadplane.available()) {
+      uint32_t now = AP_HAL::millis();
+
+      if (rangefinder_state.alt_healthy) {
+          if (now - rangefinder_state.last_healthy_ms > RANGEFINDER_TIMEOUT_MS) {
+              // reset filter if we haven't used it within the last second
+              rangefinder_state.alt_cm_filt.reset(rangefinder_state.alt_cm);
+          } else {
+              rangefinder_state.alt_cm_filt.apply(rangefinder_state.alt_cm, 0.05f);
+          }
+          rangefinder_state.last_healthy_ms = now;
+      }
+
+      // send rangefinder altitude and health to waypoint navigation library
+      quadplane.wp_nav->set_rangefinder_alt(rangefinder_state.enabled,
+          rangefinder_state.alt_healthy, rangefinder_state.alt_cm_filt.get());
+    }
+
+#else
+    rangefinder_state.enabled = false;
+    rangefinder_state.alt_healthy = false;
+    rangefinder_state.alt_cm = 0;
 #endif
+}
+
+bool Plane::rangefinder_alt_ok()
+{
+    return rangefinder_state.enabled && rangefinder_state.alt_healthy;
 }
 
 /*

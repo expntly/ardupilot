@@ -711,21 +711,25 @@ float QuadPlane::landing_descent_rate_cms(float height_above_ground)
 }
 
 bool QuadPlane::try_precision_landing() {
-  bool doing_precision_landing = false;
 #if PRECISION_LANDING == ENABLED
   if (precland.target_acquired() &&
-      precland_last_update_ms != precland.last_update_ms() &&
       poscontrol.state > QPOS_POSITION1) {
 
-      doing_precision_landing = true;
-      Vector3f target_pos;
-      precland.get_target_position(target_pos);
+      Vector2f target_pos, target_vel_rel;
+      if (!precland.get_target_position_cm(target_pos)) {
+          target_pos.x = inertial_nav.get_position().x;
+          target_pos.y = inertial_nav.get_position().y;
+      }
+      if (!precland.get_target_velocity_relative_cms(target_vel_rel)) {
+          target_vel_rel.x = -inertial_nav.get_velocity().x;
+          target_vel_rel.y = -inertial_nav.get_velocity().y;
+      }
       pos_control->set_xy_target(target_pos.x, target_pos.y);
-      pos_control->freeze_ff_xy();
-      precland_last_update_ms = precland.last_update_ms();
+      pos_control->override_vehicle_velocity_xy(-target_vel_rel);
+      return true;
   }
 #endif
-  return doing_precision_landing;
+  return false;
 }
 
 
@@ -792,6 +796,7 @@ void QuadPlane::control_loiter()
             }
         }
         float descent_rate = (poscontrol.state == QPOS_LAND_FINAL)? land_speed_cms:landing_descent_rate_cms(height_above_ground);
+        // TODO: slow down the descend for precland?
         pos_control->set_alt_target_from_climb_rate(-descent_rate, plane.G_Dt, true);
         check_land_complete();
     } else {
