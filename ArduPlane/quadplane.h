@@ -215,6 +215,9 @@ private:
     // maximum yaw rate in degrees/second
     AP_Float yaw_rate_max;
 
+    // where to point the nose of the aircraft when landing
+    int32_t land_yaw_heading;
+
     // landing speed in cm/s
     AP_Int16 land_speed_cms;
 

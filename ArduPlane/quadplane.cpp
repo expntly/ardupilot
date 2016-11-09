@@ -190,6 +190,15 @@ const AP_Param::GroupInfo QuadPlane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("LAND_SPEED", 26, QuadPlane, land_speed_cms, 50),
 
+    // @Param: LAND_YAW_HEADING
+    // @DisplayName: Land yaw heading
+    // @Description: The absolute heading used at landing time.
+    // @Units: degrees
+    // @Range: -1 360
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("LAND_YAW_HEADING", 46, QuadPlane, land_yaw_heading, -1),
+
     // @Param: LAND_FINAL_ALT
     // @DisplayName: Land final altitude
     // @Description: The altitude at which we should switch to Q_LAND_SPEED descent rate
@@ -1373,10 +1382,15 @@ void QuadPlane::vtol_position_controller(void)
         // run loiter controller
         wp_nav->update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
 
-        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
-                                                                             plane.nav_pitch_cd,
-                                                                             get_pilot_input_yaw_rate_cds() + get_weathervane_yaw_rate_cds(),
-                                                                             smoothing_gain);
+        if (land_yaw_heading == -1) {
+          attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
+                                                                               plane.nav_pitch_cd,
+                                                                               get_pilot_input_yaw_rate_cds() + get_weathervane_yaw_rate_cds(),
+                                                                               smoothing_gain);
+        } else {
+          attitude_control->input_euler_angle_roll_pitch_yaw(plane.nav_roll_cd,
+              plane.nav_pitch_cd, land_yaw_heading * 100.f, true, smoothing_gain);
+        }
         // nav roll and pitch are controller by position controller
         plane.nav_roll_cd = pos_control->get_roll();
         plane.nav_pitch_cd = pos_control->get_pitch();
@@ -1469,10 +1483,15 @@ void QuadPlane::vtol_position_controller(void)
         }
         
         // call attitude controller
-        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
-                                                                             plane.nav_pitch_cd,
-                                                                             desired_auto_yaw_rate_cds() + get_weathervane_yaw_rate_cds(),
-                                                                             smoothing_gain);
+        if (land_yaw_heading == -1) {
+          attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
+                                                                               plane.nav_pitch_cd,
+                                                                               desired_auto_yaw_rate_cds() + get_weathervane_yaw_rate_cds(),
+                                                                               smoothing_gain);
+        } else {
+          attitude_control->input_euler_angle_roll_pitch_yaw(plane.nav_roll_cd,
+              plane.nav_pitch_cd, land_yaw_heading * 100.f, true, smoothing_gain);
+        }
         if (plane.auto_state.wp_proportion >= 1 ||
             plane.auto_state.wp_distance < 5) {
             poscontrol.state = QPOS_POSITION2;
@@ -1502,10 +1521,15 @@ void QuadPlane::vtol_position_controller(void)
         plane.nav_pitch_cd = wp_nav->get_pitch();
 
         // call attitude controller
-        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
-                                                                             plane.nav_pitch_cd,
-                                                                             get_pilot_input_yaw_rate_cds() + get_weathervane_yaw_rate_cds(),
-                                                                             smoothing_gain);
+        if (land_yaw_heading == -1) {
+          attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
+                                                                               plane.nav_pitch_cd,
+                                                                               get_pilot_input_yaw_rate_cds() + get_weathervane_yaw_rate_cds(),
+                                                                               smoothing_gain);
+        } else {
+          attitude_control->input_euler_angle_roll_pitch_yaw(plane.nav_roll_cd,
+              plane.nav_pitch_cd, land_yaw_heading * 100.f, true, smoothing_gain);
+        }
         break;
 
     case QPOS_LAND_COMPLETE:
