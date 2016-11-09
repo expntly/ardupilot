@@ -190,15 +190,6 @@ const AP_Param::GroupInfo QuadPlane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("LAND_SPEED", 26, QuadPlane, land_speed_cms, 50),
 
-    // @Param: LAND_YAW_HEADING
-    // @DisplayName: Land yaw heading
-    // @Description: The absolute heading used at landing time.
-    // @Units: degrees
-    // @Range: -1 360
-    // @Increment: 1
-    // @User: Standard
-    AP_GROUPINFO("LAND_YAW_HEADING", 46, QuadPlane, land_yaw_heading, -1),
-
     // @Param: LAND_FINAL_ALT
     // @DisplayName: Land final altitude
     // @Description: The altitude at which we should switch to Q_LAND_SPEED descent rate
@@ -338,6 +329,15 @@ const AP_Param::GroupInfo QuadPlane::var_info[] = {
     // @Increment: 1
     // @User: Standard
     AP_GROUPINFO("ASSIST_ANGLE", 45, QuadPlane, assist_angle, 30),
+
+    // @Param: LAND_YAW_HEADING
+    // @DisplayName: Land yaw heading
+    // @Description: The absolute heading used at landing time.
+    // @Units: degrees
+    // @Range: -1 360
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("LAND_YAW_HDNG", 46, QuadPlane, land_yaw_heading, -1),
 
     AP_GROUPEND
 };
