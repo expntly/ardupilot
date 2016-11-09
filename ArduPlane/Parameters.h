@@ -348,6 +348,8 @@ public:
 
         k_param_DataFlash = 253, // Logging Group
 
+        // 74: precision landing object
+        k_param_precland = 321,
         // 254,255: reserved
     };
 

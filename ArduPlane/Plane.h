@@ -230,6 +230,11 @@ private:
         uint32_t last_correction_time_ms;
         uint8_t in_range_count;
         float height_estimate;
+        bool enabled:1;
+        bool alt_healthy:1; // true if we can trust the altitude from the rangefinder
+        int16_t alt_cm;     // tilt compensated altitude (in cm) from rangefinder
+        uint32_t last_healthy_ms;
+        LowPassFilterFloat alt_cm_filt; // altitude filter
     } rangefinder_state;
 #endif
 
@@ -977,6 +982,7 @@ private:
     void init_barometer(bool full_calibration);
     void init_rangefinder(void);
     void read_rangefinder(void);
+    bool rangefinder_alt_ok();
     void read_airspeed(void);
     void zero_airspeed(bool in_startup);
     void read_battery(void);
@@ -1041,6 +1047,9 @@ private:
     void update_logging1(void);
     void update_logging2(void);
     void terrain_update(void);
+    void init_precland();
+    void update_precland();
+    void Log_Write_Precland();
     void avoidance_adsb_update(void);
     void update_flight_mode(void);
     void stabilize();

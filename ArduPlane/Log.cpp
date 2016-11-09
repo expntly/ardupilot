@@ -397,6 +397,47 @@ void Plane::Log_Write_Optflow()
 }
 #endif
 
+// precision landing logging
+struct PACKED log_Precland {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint8_t healthy;
+    uint8_t target_acquired;
+    float pos_x;
+    float pos_y;
+    float vel_x;
+    float vel_y;
+};
+
+
+void Plane::Log_Write_Precland()
+{
+ #if PRECISION_LANDING == ENABLED
+    // exit immediately if not enabled
+    if (!quadplane.precland.enabled()) {
+        return;
+    }
+
+    Vector2f target_pos_rel = Vector2f(0.0f,0.0f);
+    Vector2f target_vel_rel = Vector2f(0.0f,0.0f);
+    quadplane.precland.get_target_position_relative_cm(target_pos_rel);
+    quadplane.precland.get_target_velocity_relative_cms(target_vel_rel);
+
+    struct log_Precland pkt = {
+        LOG_PACKET_HEADER_INIT(LOG_PRECLAND_MSG),
+        time_us         : AP_HAL::micros64(),
+        healthy         : quadplane.precland.healthy(),
+        target_acquired : quadplane.precland.target_acquired(),
+        pos_x           : target_pos_rel.x,
+        pos_y           : target_pos_rel.y,
+        vel_x           : target_vel_rel.x,
+        vel_y           : target_vel_rel.y
+    };
+    DataFlash.WriteBlock(&pkt, sizeof(pkt));
+ #endif     // PRECISION_LANDING == ENABLED
+}
+
+
 struct PACKED log_Arm_Disarm {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -497,6 +538,8 @@ const struct LogStructure Plane::log_structure[] = {
     { LOG_OPTFLOW_MSG, sizeof(log_Optflow),
       "OF",   "QBffff",   "TimeUS,Qual,flowX,flowY,bodyX,bodyY" },
 #endif
+    { LOG_PRECLAND_MSG, sizeof(log_Precland),
+      "PL",    "QBBffff",    "TimeUS,Heal,TAcq,pX,pY,vX,vY" },
 };
 
 #if CLI_ENABLED == ENABLED

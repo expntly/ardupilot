@@ -1301,6 +1301,12 @@ const AP_Param::Info Plane::var_info[] = {
     GOBJECT(camera_mount,           "MNT",  AP_Mount),
 #endif
 
+#if PRECISION_LANDING == ENABLED
+    // @Group: PLND_
+    // @Path: ../libraries/AC_PrecLand/AC_PrecLand.cpp
+    GOBJECTN(quadplane.precland, precland, "PLND_", AC_PrecLand),
+#endif
+
     // @Group: LOG
     // @Path: ../libraries/DataFlash/DataFlash.cpp
     GOBJECT(DataFlash,           "LOG",  DataFlash_Class),

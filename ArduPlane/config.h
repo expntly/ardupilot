@@ -71,7 +71,44 @@
 #endif
 #endif
 
-#define RANGEFINDER_ENABLED ENABLED
+//////////////////////////////////////////////////////////////////////////////
+// Rangefinder
+//
+
+#ifndef RANGEFINDER_ENABLED
+ # define RANGEFINDER_ENABLED ENABLED
+#endif
+
+#ifndef RANGEFINDER_HEALTH_MAX
+ # define RANGEFINDER_HEALTH_MAX 3          // number of good reads that indicates a healthy rangefinder
+#endif
+
+// TODO: currently not used, see if this is really needed?
+
+//#ifndef RANGEFINDER_GAIN_DEFAULT
+// # define RANGEFINDER_GAIN_DEFAULT 0.8f     // gain for controlling how quickly rangefinder range adjusts target altitude (lower means slower reaction)
+//#endif
+
+// TODO: currently not used, see if this is really needed?
+
+//#ifndef THR_SURFACE_TRACKING_VELZ_MAX
+// # define THR_SURFACE_TRACKING_VELZ_MAX 150 // max vertical speed change while surface tracking with rangefinder
+//#endif
+
+#ifndef RANGEFINDER_TIMEOUT_MS
+ # define RANGEFINDER_TIMEOUT_MS  1000      // desired rangefinder alt will reset to current rangefinder alt after this many milliseconds without a good rangefinder alt
+#endif
+
+#ifndef RANGEFINDER_WPNAV_FILT_HZ
+ # define RANGEFINDER_WPNAV_FILT_HZ   0.25f // filter frequency for rangefinder altitude provided to waypoint navigation class
+#endif
+
+//////////////////////////////////////////////////////////////////////////////
+// Precision Landing with companion computer or IRLock sensor
+#ifndef PRECISION_LANDING
+ # define PRECISION_LANDING ENABLED
+#endif
+
 
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////

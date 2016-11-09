@@ -30,6 +30,8 @@ def build(bld):
             'AC_PID',
             'AC_Fence',
             'AC_Avoidance',
+            'AC_PrecLand',
+            'AP_IRLock',
             'AP_Proximity'
         ],
     )

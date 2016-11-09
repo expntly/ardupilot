@@ -410,3 +410,24 @@ float Plane::tecs_hgt_afe(void)
     }
     return hgt_afe;
 }
+
+#if PRECISION_LANDING == ENABLED
+
+void Plane::init_precland()
+{
+    quadplane.precland.init();
+}
+
+void Plane::update_precland()
+{
+    int32_t height_above_ground_cm = current_loc.alt;
+
+    // use range finder altitude if it is valid
+    if (rangefinder_alt_ok()) {
+        height_above_ground_cm = rangefinder_state.alt_cm;
+    }
+    // TODO: add support for terrain alt if rangefinder isn't available?
+
+    quadplane.precland.update(height_above_ground_cm, rangefinder_alt_ok());
+}
+#endif

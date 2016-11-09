@@ -136,7 +136,8 @@ enum log_messages {
     LOG_STATUS_MSG,
     LOG_OPTFLOW_MSG,
     LOG_QTUN_MSG,
-    LOG_PARAMTUNE_MSG
+    LOG_PARAMTUNE_MSG,
+    LOG_PRECLAND_MSG
 };
 
 #define MASK_LOG_ATTITUDE_FAST          (1<<0)
