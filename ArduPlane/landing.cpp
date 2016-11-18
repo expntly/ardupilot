@@ -420,14 +420,16 @@ void Plane::init_precland()
 
 void Plane::update_precland()
 {
-    int32_t height_above_ground_cm = current_loc.alt;
+    // Worst case we'll take the altitude relative to home.
+    int32_t height_above_ground_cm = relative_altitude() * 100.f;
 
     // use range finder altitude if it is valid
     if (rangefinder_alt_ok()) {
         height_above_ground_cm = rangefinder_state.alt_cm;
+    } else if (g.terrain_follow) {
+        height_above_ground_cm = relative_ground_altitude(false) * 100.f;
     }
-    // TODO: add support for terrain alt if rangefinder isn't available?
 
-    quadplane.precland.update(height_above_ground_cm, rangefinder_alt_ok());
+    quadplane.precland.update(height_above_ground_cm, true);
 }
 #endif

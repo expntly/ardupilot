@@ -339,6 +339,13 @@ const AP_Param::GroupInfo QuadPlane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("LAND_YAW_HDNG", 46, QuadPlane, land_yaw_heading, -1),
 
+    // @Param: LAND_PXY_P
+    // @DisplayName: Position (horizonal) controller P gain for landing.
+    // @Description: Loiter position controller P gain for landing.  Converts the distance (in the latitude direction) to the target location into a desired speed which is then passed to the loiter latitude rate controller
+    // @Range: 0.500 2.000
+    // @User: Standard
+    AP_SUBGROUPINFO(land_p_pos_xy,   "LAND_PXY_", 47, QuadPlane, AC_P),
+
     AP_GROUPEND
 };
 
@@ -741,6 +748,21 @@ bool QuadPlane::try_precision_landing() {
   return false;
 }
 
+static float maybe_update_p_pos_xy(const float new_p_pos_xy,
+                                   float *p_pos_xy_saved_param,
+                                   AC_P *p_pos_xy) {
+  const float kP = p_pos_xy->kP();
+  if (new_p_pos_xy > 0) {
+    if (p_pos_xy_saved_param != nullptr) {
+      if (kP < 1.0f) {
+        *p_pos_xy_saved_param = kP;
+      }
+    }
+    p_pos_xy->kP(new_p_pos_xy);
+  }
+  return p_pos_xy->kP();
+}
+
 
 // run quadplane loiter controller
 void QuadPlane::control_loiter()
@@ -799,6 +821,11 @@ void QuadPlane::control_loiter()
         float height_above_ground = plane.relative_ground_altitude(plane.g.rangefinder_landing);
         if (height_above_ground < land_final_alt && poscontrol.state < QPOS_LAND_FINAL) {
             poscontrol.state = QPOS_LAND_FINAL;
+            const float kPP = maybe_update_p_pos_xy(land_p_pos_xy.kP(),
+                                                    &p_pos_xy_saved_param,
+                                                    &p_pos_xy);
+            plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,
+              "QLand FINAL P:%.2f, h: %.2f", kPP, height_above_ground);
             // cut IC engine if enabled
             if (land_icengine_cut != 0) {
                 plane.g2.ice_control.engine_control(0, 0, 0);
@@ -1305,6 +1332,11 @@ bool QuadPlane::init_mode(void)
     default:
         break;
     }
+
+    const float kPP = maybe_update_p_pos_xy(p_pos_xy_saved_param,
+                                            nullptr,
+                                            &p_pos_xy);
+    plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,"Set PXYP back to: %.2f", kPP);
     return true;
 }
 
@@ -1404,8 +1436,6 @@ void QuadPlane::vtol_position_controller(void)
     float ekfGndSpdLimit, ekfNavVelGainScaler;    
     ahrs.getEkfControlLimits(ekfGndSpdLimit, ekfNavVelGainScaler);
 
-    bool doing_precision_landing = try_precision_landing();
-
     switch (poscontrol.state) {
     case QPOS_LAND_FINAL:
         /*
@@ -1414,6 +1444,8 @@ void QuadPlane::vtol_position_controller(void)
 
         // run loiter controller
         wp_nav->update_loiter(ekfGndSpdLimit, ekfNavVelGainScaler);
+
+        try_precision_landing();
 
         if (land_yaw_heading == -1) {
           attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
@@ -1516,15 +1548,10 @@ void QuadPlane::vtol_position_controller(void)
         }
         
         // call attitude controller
-        if (land_yaw_heading == -1) {
-          attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
+        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
                                                                                plane.nav_pitch_cd,
                                                                                desired_auto_yaw_rate_cds() + get_weathervane_yaw_rate_cds(),
                                                                                smoothing_gain);
-        } else {
-          attitude_control->input_euler_angle_roll_pitch_yaw(plane.nav_roll_cd,
-              plane.nav_pitch_cd, land_yaw_heading * 100.f, true, smoothing_gain);
-        }
         if (plane.auto_state.wp_proportion >= 1 ||
             plane.auto_state.wp_distance < 5) {
             poscontrol.state = QPOS_POSITION2;
@@ -1544,9 +1571,8 @@ void QuadPlane::vtol_position_controller(void)
         // also run fixed wing navigation
         plane.nav_controller->update_waypoint(plane.prev_WP_loc, loc);
 
-        // If we were doing precision landing we already gave an xy target.
-        if (!doing_precision_landing) {
-          pos_control->set_xy_target(poscontrol.target.x, poscontrol.target.y);
+        if (!try_precision_landing()) {
+            pos_control->set_xy_target(poscontrol.target.x, poscontrol.target.y);
         }
         
         // run loiter controller
@@ -1557,7 +1583,7 @@ void QuadPlane::vtol_position_controller(void)
         plane.nav_pitch_cd = wp_nav->get_pitch();
 
         // call attitude controller
-        if (land_yaw_heading == -1) {
+        if (poscontrol.state == QPOS_POSITION2 || land_yaw_heading == -1) {
           attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
                                                                                plane.nav_pitch_cd,
                                                                                get_pilot_input_yaw_rate_cds() + get_weathervane_yaw_rate_cds(),
@@ -1787,7 +1813,6 @@ bool QuadPlane::do_vtol_takeoff(const AP_Mission::Mission_Command& cmd)
     return true;
 }
 
-
 /*
   start a VTOL landing
  */
@@ -1796,6 +1821,7 @@ bool QuadPlane::do_vtol_land(const AP_Mission::Mission_Command& cmd)
     if (!setup()) {
         return false;
     }
+
     attitude_control->get_rate_roll_pid().reset_I();
     attitude_control->get_rate_pitch_pid().reset_I();
     attitude_control->get_rate_yaw_pid().reset_I();
@@ -1875,8 +1901,8 @@ void QuadPlane::check_land_complete(void)
         return;
     }
            
-    if ((now - landing_detect.land_start_ms) < 4000 ||
-        (now - landing_detect.lower_limit_start_ms) < 5000) {
+    if ((now - landing_detect.land_start_ms) < 3000 ||
+        (now - landing_detect.lower_limit_start_ms) < 4000) {
         // not landed yet
         return;
     }
@@ -1885,7 +1911,10 @@ void QuadPlane::check_land_complete(void)
     // change in altitude for last 4s. We are landed.
     plane.disarm_motors();
     poscontrol.state = QPOS_LAND_COMPLETE;
-    plane.gcs_send_text(MAV_SEVERITY_INFO,"Land complete");
+    const float kPP = maybe_update_p_pos_xy(p_pos_xy_saved_param,
+                                            nullptr,
+                                            &p_pos_xy);
+    plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,"Land complete P:%.2f", kPP);
     // reload target airspeed which could have been modified by the mission
     plane.g.airspeed_cruise_cm.load();
 }
@@ -1901,7 +1930,8 @@ bool QuadPlane::verify_vtol_land(void)
     if (poscontrol.state == QPOS_POSITION2 &&
         plane.auto_state.wp_distance < 2) {
         poscontrol.state = QPOS_LAND_DESCEND;
-        plane.gcs_send_text(MAV_SEVERITY_INFO,"Land descend started");
+        plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,
+            "Land descend started P:%.2f", (float)p_pos_xy.kP());
         plane.set_next_WP(plane.next_WP_loc);
     }
 
@@ -1919,7 +1949,12 @@ bool QuadPlane::verify_vtol_land(void)
         if (land_icengine_cut != 0) {
             plane.g2.ice_control.engine_control(0, 0, 0);
         }
-        plane.gcs_send_text(MAV_SEVERITY_INFO,"Land final started");
+        const float kPP = maybe_update_p_pos_xy(land_p_pos_xy.kP(),
+                                                &p_pos_xy_saved_param,
+                                                &p_pos_xy);
+        plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,"Land FINAL P:%.2f, h:%.2f",
+                                kPP, height_above_ground);
+
     }
 
     check_land_complete();
