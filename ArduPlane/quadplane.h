@@ -125,11 +125,13 @@ private:
 
     AC_P                    p_pos_xy{0.7};
     float                   p_pos_xy_saved_param{0.7};
-    AC_P                    land_p_pos_xy{1.4};
+    AC_P                    land_p_pos_xy{1.8};
     AC_P                    p_alt_hold{1};
     AC_P                    p_vel_z{5};
     AC_PID                  pid_accel_z{0.3, 1, 0, 800, 10, 0.02};
     AC_PI_2D                pi_vel_xy{0.7, 0.35, 1000, 5, 0.02};
+    float                   pi_vel_xy_saved_p{0.7};
+    float                   pi_vel_xy_saved_i{0.35};
 
 #if FRAME_CONFIG == MULTICOPTER_FRAME
     AP_Int8 frame_class;
@@ -140,6 +142,7 @@ private:
     AC_AttitudeControl_Multi *attitude_control;
     AC_PosControl *pos_control;
     AC_WPNav *wp_nav;
+    float landing_alt;
     
     // maximum vertical velocity the pilot may request
     AP_Int16 pilot_velocity_z_max;

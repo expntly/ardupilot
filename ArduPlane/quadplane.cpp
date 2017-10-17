@@ -748,10 +748,10 @@ bool QuadPlane::try_precision_landing() {
   return false;
 }
 
-static float maybe_update_p_pos_xy(const float new_p_pos_xy,
-                                   float *p_pos_xy_saved_param,
-                                   AC_P *p_pos_xy) {
-  const float kP = p_pos_xy->kP();
+static void update_pos_controller_param(const float new_p_pos_xy,
+                                        AC_P *p_pos_xy,
+                                        float *p_pos_xy_saved_param) {
+  const float kP = p_pos_xy->kP().get();
   if (new_p_pos_xy > 0) {
     if (p_pos_xy_saved_param != nullptr) {
       if (kP < 1.0f) {
@@ -760,7 +760,22 @@ static float maybe_update_p_pos_xy(const float new_p_pos_xy,
     }
     p_pos_xy->kP(new_p_pos_xy);
   }
-  return p_pos_xy->kP();
+}
+
+static void update_vel_controller_params(const float new_vel_xy_p,
+                                          const float new_vel_xy_i,
+                                          AC_PI_2D *pi_vel_xy,
+                                          float *pi_vel_xy_saved_p,
+                                          float *pi_vel_xy_saved_i) {
+  if (pi_vel_xy_saved_p != nullptr) {
+    *pi_vel_xy_saved_p = pi_vel_xy->kP().get();
+  }
+  if (pi_vel_xy_saved_i != nullptr) {
+    *pi_vel_xy_saved_i = pi_vel_xy->kI().get();
+  }
+  pi_vel_xy->reset_I();
+  pi_vel_xy->kP(new_vel_xy_p);
+  pi_vel_xy->kI(new_vel_xy_i);
 }
 
 
@@ -821,11 +836,16 @@ void QuadPlane::control_loiter()
         float height_above_ground = plane.relative_ground_altitude(plane.g.rangefinder_landing);
         if (height_above_ground < land_final_alt && poscontrol.state < QPOS_LAND_FINAL) {
             poscontrol.state = QPOS_LAND_FINAL;
-            const float kPP = maybe_update_p_pos_xy(land_p_pos_xy.kP(),
-                                                    &p_pos_xy_saved_param,
-                                                    &p_pos_xy);
+            update_pos_controller_param(land_p_pos_xy.kP(), &p_pos_xy,
+                                        &p_pos_xy_saved_param);
             plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,
-              "QLand FINAL P:%.2f, h: %.2f", kPP, height_above_ground);
+                "QLand FINAL PXYP:%.2f, h: %.2f", p_pos_xy.kP().get(),
+                height_above_ground);
+
+            update_vel_controller_params(2.0, 1.0,
+                &pi_vel_xy, &pi_vel_xy_saved_p, &pi_vel_xy_saved_i);
+            plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,
+                "VXYP:%.2f, VXYI:%.2f", pi_vel_xy.kP().get(), pi_vel_xy.kI().get());
             // cut IC engine if enabled
             if (land_icengine_cut != 0) {
                 plane.g2.ice_control.engine_control(0, 0, 0);
@@ -1333,10 +1353,13 @@ bool QuadPlane::init_mode(void)
         break;
     }
 
-    const float kPP = maybe_update_p_pos_xy(p_pos_xy_saved_param,
-                                            nullptr,
-                                            &p_pos_xy);
-    plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,"Set PXYP back to: %.2f", kPP);
+    update_pos_controller_param(p_pos_xy_saved_param, &p_pos_xy, nullptr);
+    update_vel_controller_params(pi_vel_xy_saved_p, pi_vel_xy_saved_i,
+        &pi_vel_xy, nullptr, nullptr);
+    plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,
+        "PXYP: %.2f VXYP: %.2f VXYI: %.2f", p_pos_xy.kP().get(), pi_vel_xy.kP().get(),
+        pi_vel_xy.kI().get());
+    landing_alt = 0;
     return true;
 }
 
@@ -1881,13 +1904,32 @@ void QuadPlane::check_land_complete(void)
         return;
     }
     uint32_t now = AP_HAL::millis();
+    float height = inertial_nav.get_altitude()*0.01f;
+
+    bool aggr_might_be_landed = (landing_detect.lower_limit_start_ms != 0 &&
+                                 now - landing_detect.lower_limit_start_ms > 200);
+    if (aggr_might_be_landed &&
+        height < 1.0 &&
+        plane.rangefinder.status() == RangeFinder::RangeFinder_OutOfRangeLow &&
+        pi_vel_xy.kP() > 0.21 &&
+        pi_vel_xy.kI() > 0.11) {
+      landing_alt = 1.0;
+      update_pos_controller_param(0.1, &p_pos_xy, nullptr);
+      update_vel_controller_params(0.2, 0.1, &pi_vel_xy, nullptr, nullptr);
+      GCS_MAVLINK::send_statustext_all(MAV_SEVERITY_WARNING,
+                                       "SOFT height:%.2f",
+                                       pi_vel_xy.kP().get(), pi_vel_xy.kI().get(),
+                                       height);
+    }
+
     bool might_be_landed =  (landing_detect.lower_limit_start_ms != 0 &&
                              now - landing_detect.lower_limit_start_ms > 1000);
     if (!might_be_landed) {
         landing_detect.land_start_ms = 0;
         return;
     }
-    float height = inertial_nav.get_altitude()*0.01f;
+
+
     if (landing_detect.land_start_ms == 0) {
         landing_detect.land_start_ms = now;
         landing_detect.vpos_start_m = height;
@@ -1900,6 +1942,7 @@ void QuadPlane::check_land_complete(void)
         landing_detect.land_start_ms = 0;
         return;
     }
+
            
     if ((now - landing_detect.land_start_ms) < 3000 ||
         (now - landing_detect.lower_limit_start_ms) < 4000) {
@@ -1911,10 +1954,12 @@ void QuadPlane::check_land_complete(void)
     // change in altitude for last 4s. We are landed.
     plane.disarm_motors();
     poscontrol.state = QPOS_LAND_COMPLETE;
-    const float kPP = maybe_update_p_pos_xy(p_pos_xy_saved_param,
-                                            nullptr,
-                                            &p_pos_xy);
-    plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,"Land complete P:%.2f", kPP);
+    update_pos_controller_param(p_pos_xy_saved_param, &p_pos_xy, nullptr);
+    update_vel_controller_params(pi_vel_xy_saved_p, pi_vel_xy_saved_i,
+                                 &pi_vel_xy, nullptr, nullptr);
+    plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,
+        "Land done PXYP:%.2f VXYP:%.2f VXYI:%.2f", p_pos_xy.kP().get(),
+        pi_vel_xy.kP().get(), pi_vel_xy.kI().get());
     // reload target airspeed which could have been modified by the mission
     plane.g.airspeed_cruise_cm.load();
 }
@@ -1931,7 +1976,7 @@ bool QuadPlane::verify_vtol_land(void)
         plane.auto_state.wp_distance < 2) {
         poscontrol.state = QPOS_LAND_DESCEND;
         plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,
-            "Land descend started P:%.2f", (float)p_pos_xy.kP());
+            "Land descend started P:%.2f", p_pos_xy.kP().get());
         plane.set_next_WP(plane.next_WP_loc);
     }
 
@@ -1949,11 +1994,17 @@ bool QuadPlane::verify_vtol_land(void)
         if (land_icengine_cut != 0) {
             plane.g2.ice_control.engine_control(0, 0, 0);
         }
-        const float kPP = maybe_update_p_pos_xy(land_p_pos_xy.kP(),
-                                                &p_pos_xy_saved_param,
-                                                &p_pos_xy);
-        plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,"Land FINAL P:%.2f, h:%.2f",
-                                kPP, height_above_ground);
+
+        update_pos_controller_param(land_p_pos_xy.kP(), &p_pos_xy,
+                                    &p_pos_xy_saved_param);
+        plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,
+            "Land FINAL PXYP:%.2f, h:%.2f", p_pos_xy.kP().get(),
+            height_above_ground);
+
+        update_vel_controller_params(2, 1, &pi_vel_xy, &pi_vel_xy_saved_p,
+            &pi_vel_xy_saved_i);
+        plane.gcs_send_text_fmt(MAV_SEVERITY_INFO,
+            "VXYP:%.2f, VXYI:%.2f", pi_vel_xy.kP().get(), pi_vel_xy.kI().get());
 
     }
 
@@ -1971,7 +2022,7 @@ void QuadPlane::Log_Write_QControl_Tuning()
         time_us             : AP_HAL::micros64(),
         angle_boost         : attitude_control->angle_boost(),
         throttle_out        : motors->get_throttle(),
-        desired_alt         : pos_control->get_alt_target() / 100.0f,
+        desired_alt         : landing_alt,
         inav_alt            : inertial_nav.get_altitude() / 100.0f,
         baro_alt            : (int32_t)plane.barometer.get_altitude() * 100,
         desired_climb_rate  : (int16_t)pos_control->get_vel_target_z(),
